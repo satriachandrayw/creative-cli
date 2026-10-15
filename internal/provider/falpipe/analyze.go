@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/radjathaher/creative-cli/internal/core"
-	"github.com/radjathaher/creative-cli/internal/fal"
+	"github.com/satriachandrayw/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/fal"
 )
 
 // analyzeEndpoint is fal's OpenRouter video-understanding route: it forwards the
@@ -42,7 +42,7 @@ func Analyze(o AnalyzeOpts, pretty, raw bool) (*core.Envelope, json.RawMessage, 
 	}
 	body := map[string]any{
 		"video_urls":  []string{input.ResolvedURL},
-		"prompt":      buildAnalyzePrompt(o.Prompt),
+		"prompt":      BuildAnalyzePrompt(o.Prompt),
 		"model":       o.Model,
 		"temperature": o.Temperature,
 		"max_tokens":  o.MaxOutputTokens,
@@ -86,10 +86,10 @@ func Analyze(o AnalyzeOpts, pretty, raw bool) (*core.Envelope, json.RawMessage, 
 	return env, resraw, nil
 }
 
-// buildAnalyzePrompt instructs Gemini to return a plain-text brief detailed
+// BuildAnalyzePrompt instructs Gemini to return a plain-text brief detailed
 // enough to recreate the source video in another AI video tool; a non-empty
 // extra instruction is appended verbatim.
-func buildAnalyzePrompt(extra string) string {
+func BuildAnalyzePrompt(extra string) string {
 	prompt := "Create a detailed video recreation brief from this video. Return only the brief text, not JSON. Include scene/timestamp notes, camera framing and motion, subjects and actions, on-screen text, audio or spoken content, pacing, transitions, visual style, and enough concrete detail to recreate the same video in another AI video tool."
 	if e := strings.TrimSpace(extra); e != "" {
 		prompt += "\n\nExtra instruction: " + e

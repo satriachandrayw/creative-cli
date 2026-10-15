@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/radjathaher/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/core"
 )
 
 // DubOpts configures a dubbing job.

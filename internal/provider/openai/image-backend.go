@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/radjathaher/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/core"
 )
 
 type imageBackend struct {

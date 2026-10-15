@@ -10,7 +10,7 @@ every result is JSON on stdout. There is no prompt, menu, or confirmation.
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/radjathaher/creative-cli/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/satriachandrayw/creative-cli/main/scripts/install.sh | bash
 ```
 
 Or build from source (Go 1.25+):
@@ -19,26 +19,62 @@ Or build from source (Go 1.25+):
 go build -o creative .
 ```
 
+## Cloudflare-first
+
+This fork routes every verb Cloudflare's AI catalog can serve through
+**Cloudflare AI** (`POST /accounts/{id}/ai/run`), so a single Cloudflare
+credential — or simply an active `wrangler login` — replaces most per-vendor
+keys. Third-party models (OpenAI, Google, ElevenLabs, ByteDance, Black Forest
+Labs, Topaz) run through AI Gateway and bill against prepaid **Unified Billing**
+credits on your Cloudflare account; Workers AI models (`@cf/...`) bill as
+Workers AI usage. Every original provider is still available via `--provider`.
+
+```bash
+wrangler login                      # once; or export CLOUDFLARE_API_TOKEN=...
+creative image  --prompt "a red cube on white" --out cube.png
+creative speech --text "Hello" --out hello.mp3
+creative transcribe hello.mp3 --format srt
+```
+
+| Setting | Purpose |
+|---------|---------|
+| `CLOUDFLARE_API_TOKEN` | API token with **Workers AI Read** (+ AI Gateway) permission. Falls back to `wrangler auth token` when unset. |
+| `CLOUDFLARE_ACCOUNT_ID` | Optional when the credential sees exactly one account. |
+| `CLOUDFLARE_AI_GATEWAY_ID` | Gateway to route through (default `default`, auto-created; `none` omits the header). |
+| `WRANGLER_BIN` | How to invoke wrangler (default: `wrangler` on `PATH`, else `npx -y wrangler`). |
+
+Both variables also resolve from `/run/secrets/<NAME>`.
+Cloudflare runs are synchronous, so `--no-wait` is rejected for `--provider cloudflare`.
+
 ## Verbs
 
-| Verb | Default provider | Credential | What it does |
-|------|------------------|------------|--------------|
-| `creative image` | codex-lb when configured, otherwise OpenAI | `CODEX_LB_API_KEY` / `OPENAI_API_KEY` | gpt-image-2 text→image; `--image REF` for img2img |
-| `creative video` | Segmind Seedance; fal Gemini Omni Flash | `SEGMIND_API_KEY` / `FAL_KEY` | text/reference→video with provider-generated audio |
-| `creative speech` | ElevenLabs | `ELEVENLABS_API_KEY` | text→voiceover |
-| `creative music` | ElevenLabs | `ELEVENLABS_API_KEY` | text→music |
-| `creative sfx` | ElevenLabs | `ELEVENLABS_API_KEY` | text→sound effect |
-| `creative voice` | ElevenLabs | `ELEVENLABS_API_KEY` | clone / design a voice |
-| `creative upscale` | fal (bytedance) | `FAL_KEY` | video→higher-resolution video |
-| `creative caption` | fal→VEED | `FAL_KEY` / `ZAPCAP_API_KEY` | burn subtitles onto video |
-| `creative dub` | ElevenLabs | `ELEVENLABS_API_KEY` | re-language a video |
-| `creative transcribe` | OpenAI Whisper | `OPENAI_API_KEY` | audio/video→text |
-| `creative analyze` | fal→Gemini | `FAL_KEY` | video→recreation brief |
+| Verb | Default (Cloudflare model) | Other providers | What it does |
+|------|----------------------------|-----------------|--------------|
+| `creative image` | `openai/gpt-image-2`; `--model flux-2-klein-9b`, `flux-2-dev`, any catalog id | `openai` (codex-lb / OpenAI) | text→image; `--image REF` for edits |
+| `creative video` | `bytedance/seedance-2.5`; `--model omni`, `omni-1.1-flash`, `seedance-2.0` | `segmind`, `fal` | text/reference→video with generated audio |
+| `creative speech` | `elevenlabs/eleven-v3` (any `eleven_*` model id maps over) | `elevenlabs` | text→voiceover |
+| `creative music` | `elevenlabs/music-v2` | `elevenlabs` | text→music |
+| `creative sfx` | — *(no Cloudflare model)* | `elevenlabs` (`ELEVENLABS_API_KEY`) | text→sound effect |
+| `creative voice` | — *(no Cloudflare model)* | `elevenlabs` (`ELEVENLABS_API_KEY`) | clone / design a voice |
+| `creative upscale` | `black-forest-labs/flux-video-upscale`; `--model topaz-fast`, `topaz-precise` (https URL input) | `fal` | video→higher-resolution video |
+| `creative caption` | `@cf/openai/whisper-large-v3-turbo` word timings + local ffmpeg burn | `veed`, `zapcap` | burn subtitles onto video |
+| `creative dub` | — *(no Cloudflare model)* | `elevenlabs` (`ELEVENLABS_API_KEY`) | re-language a video |
+| `creative transcribe` | `@cf/openai/whisper-large-v3-turbo` | `openai` | audio/video→text (text, json, srt, vtt, verbose_json) |
+| `creative analyze` | `google/gemini-3-flash` (inline video ≤20 MB, else sampled frames + transcript) | `fal` (needed for YouTube URLs) | video→recreation brief |
 
-Credentials resolve from the environment first, then `/run/secrets/<NAME>` — the
-same convention every sibling CLI uses.
+`ffmpeg`/`ffprobe` on `PATH` are needed for `transcribe` (audio normalization),
+`caption`, `upscale` and `analyze --mode frames`.
 
-## Image backend selection
+Non-Cloudflare credentials resolve from the environment first, then
+`/run/secrets/<NAME>` — the same convention every sibling CLI uses.
+
+### Verifying against your account
+
+`scripts/smoke-cloudflare.sh` runs every Cloudflare-backed verb end to end and
+checks the outputs with `ffprobe` (`SMOKE_SKIP="video upscale"` skips the
+priciest ones). `go test ./...` covers the same flows against a mock `/ai/run`.
+
+## Image backend selection (`--provider openai`)
 
 Set both `CODEX_LB_BASE_URL` and `CODEX_LB_API_KEY` to prefer your load balancer.
 The base URL includes the API prefix, for example `https://codex-lb.cakrawala.ai/v1`.
@@ -82,15 +118,17 @@ Async verbs (`video`, `upscale`, `caption`, `dub`, `analyze`) accept
 
 ## Video providers
 
-Segmind Seedance remains the default. Select fal Gemini Omni Flash 1.1 with
-`--provider fal`; `--model auto` resolves to the correct provider model.
+Cloudflare Seedance 2.5 is the default (4–30 s, 480p/720p). `--model omni`
+selects Gemini Omni Flash on Cloudflare (16:9 or 9:16, 360p–4K, no duration
+control). Segmind Seedance (`--provider segmind`) and fal Gemini Omni Flash 1.1
+(`--provider fal`) remain available; `--model auto` resolves per provider.
 
 ```bash
 creative video --provider fal --prompt "handheld product demo" \
   --resolution 360p --duration-seconds 3 --out draft.mp4
 ```
 
-Omni accepts 3–10 second output at 360p, 720p, 1080p, or 4K. With no references,
+fal Omni accepts 3–10 second output at 360p, 720p, 1080p, or 4K. With no references,
 the command uses text-to-video. `--first-frame` selects image-to-video.
 Repeatable `--image` and `--video` flags select multimodal reference-to-video.
 Omni always generates synchronized audio and does not accept `--audio` or
@@ -98,7 +136,10 @@ Omni always generates synchronized audio and does not accept `--audio` or
 
 ## Video upscaling
 
-Topaz and FlashVSR calculate their scale factor from the input dimensions, so
+On Cloudflare, `flux` (default) accepts local files or URLs up to 20 s / 50 MB
+and clamps the factor to 1.5–3×; `topaz-fast` / `topaz-precise` require an
+`https://` input and send ffprobe-derived frame metadata. On fal, Topaz and
+FlashVSR calculate their scale factor from the input dimensions, so
 `--target 1080p` means 1080p instead of a fixed 2× resize. Video upscaling
 requires `ffprobe` on `PATH`; Nix installations provide it automatically.
 

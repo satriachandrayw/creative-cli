@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/radjathaher/creative-cli/internal/core"
-	"github.com/radjathaher/creative-cli/internal/provider/elevenlabs"
+	"github.com/satriachandrayw/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/provider/cloudflare"
+	"github.com/satriachandrayw/creative-cli/internal/provider/elevenlabs"
 	"github.com/spf13/cobra"
 )
 
@@ -13,16 +14,17 @@ func init() {
 	register(func(root *cobra.Command) {
 		c := &cobra.Command{
 			Use:   "speech",
-			Short: "Synthesize speech from text via ElevenLabs text-to-speech.",
+			Short: "Synthesize speech via ElevenLabs voices on Cloudflare AI (default) or the ElevenLabs API directly.",
 			Args:  cobra.NoArgs,
 			RunE:  runSpeech,
 		}
 		c.Flags().String("text", "", "text to speak (required)")
 		c.Flags().String("voice-id", "JBFqnCBsd6RMkjVDRZzb", "ElevenLabs voice id")
-		c.Flags().String("model", "eleven_v3", "ElevenLabs model id")
+		c.Flags().String("model", "eleven_v3", "ElevenLabs model id (eleven_v3, eleven_multilingual_v2, …) or a Cloudflare catalog/@cf id")
 		c.Flags().String("output-format", "mp3_44100_128", "audio output format")
+		c.Flags().String("language", "", "ISO 639-1 language code (cloudflare)")
 		addOutFlag(c)
-		addProviderFlag(c, "elevenlabs")
+		addProviderFlag(c, "cloudflare")
 		root.AddCommand(c)
 	})
 }
@@ -36,6 +38,25 @@ func runSpeech(cmd *cobra.Command, _ []string) error {
 	out := flagStr(cmd, "out")
 	if out == "" {
 		return fmt.Errorf("--out is required")
+	}
+
+	if provider := flagStr(cmd, "provider"); provider == "cloudflare" {
+		started := time.Now()
+		core.Progress("synthesizing speech with %s via cloudflare", cloudflare.SpeechModel(flagStr(cmd, "model")))
+		res, err := cloudflare.Speech(cmd.Context(), cloudflare.SpeechParams{
+			Text:         text,
+			VoiceID:      flagStr(cmd, "voice-id"),
+			Model:        flagStr(cmd, "model"),
+			OutputFormat: flagStr(cmd, "output-format"),
+			LanguageCode: flagStr(cmd, "language"),
+			Out:          out,
+		})
+		if err != nil {
+			return err
+		}
+		return emitMedia(common, started, res, "prompt", text, "audio", out)
+	} else if provider != "elevenlabs" {
+		return fmt.Errorf("unknown speech provider %q (want cloudflare|elevenlabs)", provider)
 	}
 
 	client, err := elevenlabs.New()

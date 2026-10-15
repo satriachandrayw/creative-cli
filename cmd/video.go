@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
-	"github.com/radjathaher/creative-cli/internal/core"
-	"github.com/radjathaher/creative-cli/internal/provider/falvideo"
-	"github.com/radjathaher/creative-cli/internal/provider/segmind"
+	"github.com/satriachandrayw/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/provider/cloudflare"
+	"github.com/satriachandrayw/creative-cli/internal/provider/falvideo"
+	"github.com/satriachandrayw/creative-cli/internal/provider/segmind"
 	"github.com/spf13/cobra"
 )
 
@@ -13,12 +15,12 @@ func init() {
 	register(func(root *cobra.Command) {
 		c := &cobra.Command{
 			Use:   "video",
-			Short: "Generate a video via Segmind Seedance or fal Gemini Omni Flash.",
+			Short: "Generate a video via Cloudflare AI (Seedance 2.5, Gemini Omni Flash), Segmind, or fal.",
 			Args:  cobra.NoArgs,
 			RunE:  runVideo,
 		}
 		c.Flags().String("prompt", "", "text prompt (required)")
-		c.Flags().String("model", "auto", "auto | mini | fast | standard | 2.5 (Seedance 2.5, 4-30s) | omni-1.1-flash")
+		c.Flags().String("model", "auto", "auto | cloudflare: seedance-2.5 | seedance-2.0 | omni | omni-1.1-flash | <catalog id>; segmind: mini | fast | standard | 2.5; fal: omni-1.1-flash")
 		addRefFlags(c)
 		c.Flags().String("first-frame", "", "starting frame image (path or url); cannot combine with --image")
 		c.Flags().String("last-frame", "", "ending frame image (path or url); requires --first-frame")
@@ -29,7 +31,7 @@ func init() {
 		c.Flags().Int("seed", -1, "seed; -1 lets the provider choose")
 		addOutFlag(c)
 		addAsyncFlags(c)
-		addProviderFlag(c, "segmind")
+		addProviderFlag(c, "cloudflare")
 		root.AddCommand(c)
 	})
 }
@@ -45,6 +47,47 @@ func runVideo(cmd *cobra.Command, _ []string) error {
 	model, err := videoModel(provider, flagStr(cmd, "model"))
 	if err != nil {
 		return err
+	}
+	if provider == "cloudflare" {
+		if flagBool(cmd, "no-wait") {
+			return fmt.Errorf("--no-wait is not supported with the cloudflare provider (runs are synchronous)")
+		}
+		started := time.Now()
+		core.Progress("generating video with %s via cloudflare", model)
+		images := flagStrs(cmd, "image")
+		res, err := cloudflare.GenerateVideo(cmd.Context(), cloudflare.VideoParams{
+			Prompt:        prompt,
+			Model:         model,
+			Images:        images,
+			Videos:        flagStrs(cmd, "video"),
+			Audios:        flagStrs(cmd, "audio"),
+			FirstFrame:    flagStr(cmd, "first-frame"),
+			LastFrame:     flagStr(cmd, "last-frame"),
+			Duration:      flagInt(cmd, "duration-seconds"),
+			Resolution:    flagStr(cmd, "resolution"),
+			AspectRatio:   flagStr(cmd, "aspect-ratio"),
+			GenerateAudio: !flagBool(cmd, "no-generate-audio"),
+			Seed:          flagInt(cmd, "seed"),
+			Out:           flagStr(cmd, "out"),
+		})
+		if err != nil {
+			return err
+		}
+		elapsed := roundSecs(started)
+		core.Progress("done in %.3fs", elapsed)
+		kind := "prompt"
+		if len(images) > 0 || flagStr(cmd, "first-frame") != "" || len(flagStrs(cmd, "video")) > 0 {
+			kind = "reference"
+		}
+		return core.Emit(&core.Envelope{
+			Provider:       "cloudflare",
+			Endpoint:       res.Endpoint,
+			Model:          res.Model,
+			Input:          &core.InputInfo{Kind: kind, Source: prompt},
+			Output:         res.URL,
+			ElapsedSeconds: elapsed,
+			Out:            flagStr(cmd, "out"),
+		}, res.Raw, common.pretty, common.raw)
 	}
 	if provider == "fal" {
 		if flagInt(cmd, "seed") != -1 {
@@ -99,6 +142,8 @@ func runVideo(cmd *cobra.Command, _ []string) error {
 
 func videoModel(provider, model string) (string, error) {
 	switch provider {
+	case "cloudflare":
+		return cloudflare.VideoModel(model), nil
 	case "segmind":
 		if model == "auto" {
 			return "mini", nil
@@ -110,6 +155,6 @@ func videoModel(provider, model string) (string, error) {
 		}
 		return model, nil
 	default:
-		return "", fmt.Errorf("unknown video provider %q (want segmind|fal)", provider)
+		return "", fmt.Errorf("unknown video provider %q (want cloudflare|segmind|fal)", provider)
 	}
 }

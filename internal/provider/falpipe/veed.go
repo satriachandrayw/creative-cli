@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/radjathaher/creative-cli/internal/core"
-	"github.com/radjathaher/creative-cli/internal/fal"
+	"github.com/satriachandrayw/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/fal"
 )
 
 // veedEndpoint is fal's VEED subtitle-burning route: it accepts a video url and

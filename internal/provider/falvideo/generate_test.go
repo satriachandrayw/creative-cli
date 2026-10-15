@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/radjathaher/creative-cli/internal/fal"
+	"github.com/satriachandrayw/creative-cli/internal/fal"
 )
 
 func TestBuildRequestSelectsEndpointFromInputs(t *testing.T) {

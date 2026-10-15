@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Install the `creative` binary from the latest GitHub release.
 #
-#   curl -fsSL https://raw.githubusercontent.com/radjathaher/creative-cli/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/satriachandrayw/creative-cli/main/scripts/install.sh | bash
 #
 # Override the version with CREATIVE_CLI_VERSION=v0.1.0 and the install dir with
 # CREATIVE_CLI_BIN_DIR=/usr/local/bin.
 set -euo pipefail
 
-REPO="radjathaher/creative-cli"
+REPO="satriachandrayw/creative-cli"
 BIN="creative"
 
 os="$(uname -s)"

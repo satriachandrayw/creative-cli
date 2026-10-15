@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/radjathaher/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/core"
 )
 
 // TranscribeParams configures an audio transcription or translation request.

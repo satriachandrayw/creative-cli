@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/radjathaher/creative-cli/cmd"
+	"github.com/satriachandrayw/creative-cli/cmd"
 )
 
 func main() {

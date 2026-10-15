@@ -7,8 +7,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/radjathaher/creative-cli/internal/core"
-	"github.com/radjathaher/creative-cli/internal/fal"
+	"github.com/satriachandrayw/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/fal"
 )
 
 const omniBaseEndpoint = "google/gemini-omni-flash/v1.1"

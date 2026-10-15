@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/radjathaher/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/core"
 	"github.com/spf13/cobra"
 )
 

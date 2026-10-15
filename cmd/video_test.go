@@ -12,6 +12,8 @@ func TestVideoModelDefaultsByProvider(t *testing.T) {
 		{provider: "segmind", model: "fast", want: "fast"},
 		{provider: "fal", model: "auto", want: "omni-1.1-flash"},
 		{provider: "fal", model: "omni-1.1-flash", want: "omni-1.1-flash"},
+		{provider: "cloudflare", model: "auto", want: "bytedance/seedance-2.5"},
+		{provider: "cloudflare", model: "omni-1.1-flash", want: "google/gemini-omni-1.1-flash"},
 	}
 	for _, test := range tests {
 		got, err := videoModel(test.provider, test.model)

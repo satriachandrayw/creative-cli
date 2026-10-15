@@ -1,4 +1,4 @@
-module github.com/radjathaher/creative-cli
+module github.com/satriachandrayw/creative-cli
 
 go 1.25.7
 

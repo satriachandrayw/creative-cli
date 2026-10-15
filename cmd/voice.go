@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/radjathaher/creative-cli/internal/core"
-	"github.com/radjathaher/creative-cli/internal/provider/elevenlabs"
+	"github.com/satriachandrayw/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/provider/elevenlabs"
 	"github.com/spf13/cobra"
 )
 

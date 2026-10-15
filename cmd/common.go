@@ -4,6 +4,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/satriachandrayw/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/provider/cloudflare"
 	"github.com/spf13/cobra"
 )
 
@@ -53,6 +55,27 @@ func flagBool(cmd *cobra.Command, name string) bool { v, _ := cmd.Flags().GetBoo
 func flagStrs(cmd *cobra.Command, name string) []string {
 	v, _ := cmd.Flags().GetStringArray(name)
 	return v
+}
+
+// emitMedia prints the envelope for a Cloudflare run that produced one media file.
+func emitMedia(common commonOpts, started time.Time, res *cloudflare.MediaResult, kind, source string, output any, out string) error {
+	elapsed := roundSecs(started)
+	core.Progress("done in %.3fs", elapsed)
+	if s, ok := output.(string); ok && s == "" {
+		output = "media"
+	}
+	if res.URL != "" {
+		output = res.URL
+	}
+	return core.Emit(&core.Envelope{
+		Provider:       "cloudflare",
+		Endpoint:       res.Endpoint,
+		Model:          res.Model,
+		Input:          &core.InputInfo{Kind: kind, Source: source},
+		Output:         output,
+		ElapsedSeconds: elapsed,
+		Out:            out,
+	}, res.Raw, common.pretty, common.raw)
 }
 
 // roundSecs returns elapsed seconds since start rounded to milliseconds.

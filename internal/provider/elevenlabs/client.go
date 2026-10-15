@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/radjathaher/creative-cli/internal/core"
+	"github.com/satriachandrayw/creative-cli/internal/core"
 )
 
 const defaultBaseURL = "https://api.elevenlabs.io"
