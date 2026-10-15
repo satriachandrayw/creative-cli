@@ -146,3 +146,10 @@ func TestRunMultipartUsesModelPath(t *testing.T) {
 		t.Fatalf("res=%v err=%v", res, err)
 	}
 }
+
+func TestWranglerErrorPicksErrorLine(t *testing.T) {
+	got := lastLine("\n\x1b[31m✘ \x1b[41;31m[\x1b[41;97mERROR\x1b[41;31m]\x1b[0m Not logged in.\n\n🪵  Logs were written to \"x.log\"\n")
+	if !strings.Contains(got, "Not logged in.") || strings.Contains(got, "\x1b") {
+		t.Fatalf("got %q", got)
+	}
+}

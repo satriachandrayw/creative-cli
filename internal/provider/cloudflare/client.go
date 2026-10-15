@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -144,10 +145,19 @@ func wranglerAuth() (*wranglerToken, error) {
 	return &w, nil
 }
 
+var ansi = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// lastLine picks wrangler's most useful stderr line: the first [ERROR] line,
+// else the last line that is not a log-file notice.
 func lastLine(s string) string {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
+	lines := strings.Split(ansi.ReplaceAllString(strings.TrimSpace(s), ""), "\n")
+	for _, l := range lines {
+		if strings.Contains(l, "ERROR") {
+			return strings.TrimSpace(l)
+		}
+	}
 	for i := len(lines) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(lines[i]); l != "" {
+		if l := strings.TrimSpace(lines[i]); l != "" && !strings.Contains(l, "Logs were written") {
 			return l
 		}
 	}
