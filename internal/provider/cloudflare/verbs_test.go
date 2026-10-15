@@ -56,7 +56,8 @@ func (m *mockAI) handle(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("MEDIA:" + strings.TrimPrefix(r.URL.Path, "/media/")))
 		return
 	}
-	if r.Header.Get("Authorization") != "Bearer tok" || r.Header.Get("cf-aig-gateway-id") != "default" {
+	multipart := strings.HasPrefix(r.URL.Path, "/accounts/acc/ai/run/@cf/")
+	if r.Header.Get("Authorization") != "Bearer tok" || (r.Header.Get("cf-aig-gateway-id") != "default") != multipart {
 		http.Error(w, `{"errors":[{"code":10000,"message":"auth"}]}`, 401)
 		return
 	}
@@ -77,7 +78,7 @@ func (m *mockAI) handle(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&body)
 	m.record(body.Model, body.Input)
 	media := func(field, name string) {
-		json.NewEncoder(w).Encode(map[string]any{"state": "Completed", "result": map[string]any{field: m.srv.URL + "/media/" + name}})
+		json.NewEncoder(w).Encode(map[string]any{"success": true, "result": map[string]any{"state": "Completed", "result": map[string]any{field: m.srv.URL + "/media/" + name}}})
 	}
 	switch body.Model {
 	case "openai/gpt-image-2":

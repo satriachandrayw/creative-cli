@@ -258,7 +258,7 @@ func (c *Client) Run(ctx context.Context, model string, input any) (*Response, e
 	if err != nil {
 		return nil, err
 	}
-	return c.post(ctx, model, endpoint, url, "application/json", body)
+	return c.post(ctx, model, endpoint, url, "application/json", body, true)
 }
 
 // RunMultipart posts a multipart form to the model-in-path endpoint, the only
@@ -266,7 +266,9 @@ func (c *Client) Run(ctx context.Context, model string, input any) (*Response, e
 func (c *Client) RunMultipart(ctx context.Context, model, contentType string, form []byte) (*Response, error) {
 	endpoint := "/ai/run/" + model
 	url := fmt.Sprintf("%s/accounts/%s%s", apiBase(), c.AccountID, endpoint)
-	return c.post(ctx, model, endpoint, url, contentType, form)
+	// The model-in-path endpoint rejects multipart bodies (7000 Invalid request
+	// body) when a cf-aig-gateway-id header is present, so it is omitted here.
+	return c.post(ctx, model, endpoint, url, contentType, form, false)
 }
 
 // gatewayID is the AI Gateway every request is routed through. Third-party
@@ -283,7 +285,7 @@ func gatewayID() string {
 	return v
 }
 
-func (c *Client) post(ctx context.Context, model, endpoint, url, contentType string, body []byte) (*Response, error) {
+func (c *Client) post(ctx context.Context, model, endpoint, url, contentType string, body []byte, gateway bool) (*Response, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -292,7 +294,7 @@ func (c *Client) post(ctx context.Context, model, endpoint, url, contentType str
 		return nil, err
 	}
 	req.Header.Set("Content-Type", contentType)
-	if gw := gatewayID(); gw != "" {
+	if gw := gatewayID(); gw != "" && gateway {
 		req.Header.Set("cf-aig-gateway-id", gw)
 	}
 	data, ct, err := c.do(req)
@@ -305,24 +307,38 @@ func (c *Client) post(ctx context.Context, model, endpoint, url, contentType str
 		return res, nil
 	}
 	res.Raw = data
-	var env struct {
-		Success *bool           `json:"success"`
-		State   string          `json:"state"`
-		Result  json.RawMessage `json:"result"`
+	result, err := unwrap(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", model, err)
 	}
-	if err := json.Unmarshal(data, &env); err != nil {
-		return nil, fmt.Errorf("%s: decode response: %w", model, err)
-	}
-	if env.Success != nil && !*env.Success {
-		return nil, fmt.Errorf("%s: %s", model, errorText(data))
-	}
-	if env.State != "" && !strings.EqualFold(env.State, "completed") {
-		return nil, fmt.Errorf("%s: run state %q: %s", model, env.State, errorText(data))
-	}
-	if len(env.Result) > 0 {
-		res.Result = env.Result
-	} else {
-		res.Result = data
-	}
+	res.Result = result
 	return res, nil
+}
+
+// unwrap peels Cloudflare's envelopes down to the model output. /ai/run nests
+// third-party runs as {"result":{"state":"Completed","result":{...}}}, while
+// Workers AI and native LLM replies carry a single {"result":{...}} layer (or
+// none). Each layer's success/state flags are checked on the way down.
+func unwrap(data json.RawMessage) (json.RawMessage, error) {
+	for range 3 {
+		var env struct {
+			Success *bool           `json:"success"`
+			State   string          `json:"state"`
+			Result  json.RawMessage `json:"result"`
+		}
+		if err := json.Unmarshal(data, &env); err != nil {
+			return nil, fmt.Errorf("decode response: %w", err)
+		}
+		if env.Success != nil && !*env.Success {
+			return nil, fmt.Errorf("%s", errorText(data))
+		}
+		if env.State != "" && !strings.EqualFold(env.State, "completed") {
+			return nil, fmt.Errorf("run state %q: %s", env.State, errorText(data))
+		}
+		if len(env.Result) == 0 || env.Result[0] != '{' {
+			return data, nil
+		}
+		data = env.Result
+	}
+	return data, nil
 }

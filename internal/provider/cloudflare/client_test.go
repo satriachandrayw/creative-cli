@@ -135,6 +135,9 @@ func TestRunMultipartUsesModelPath(t *testing.T) {
 		if r.URL.Path != "/accounts/acc/ai/run/@cf/black-forest-labs/flux-2-klein-9b" {
 			t.Errorf("path = %s", r.URL.Path)
 		}
+		if r.Header.Get("cf-aig-gateway-id") != "" {
+			t.Errorf("multipart must not send a gateway header")
+		}
 		if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 			t.Errorf("ct = %s", r.Header.Get("Content-Type"))
 		}
@@ -151,5 +154,19 @@ func TestWranglerErrorPicksErrorLine(t *testing.T) {
 	got := lastLine("\n\x1b[31m✘ \x1b[41;31m[\x1b[41;97mERROR\x1b[41;31m]\x1b[0m Not logged in.\n\n🪵  Logs were written to \"x.log\"\n")
 	if !strings.Contains(got, "Not logged in.") || strings.Contains(got, "\x1b") {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestUnwrapNestedThirdPartyEnvelope(t *testing.T) {
+	got, err := unwrap([]byte(`{"result":{"state":"Completed","result":{"audio":"https://x/a.mp3"},"gatewayMetadata":{}},"success":true}`))
+	if err != nil || string(got) != `{"audio":"https://x/a.mp3"}` {
+		t.Fatalf("got %s err %v", got, err)
+	}
+	if _, err := unwrap([]byte(`{"result":{"state":"Failed","result":{}},"success":true}`)); err == nil {
+		t.Fatal("nested failed state accepted")
+	}
+	got, err = unwrap([]byte(`{"result":{"candidates":[{"content":{}}]},"success":true}`))
+	if err != nil || !strings.HasPrefix(string(got), `{"candidates"`) {
+		t.Fatalf("gemini got %s err %v", got, err)
 	}
 }
